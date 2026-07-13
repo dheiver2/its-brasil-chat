@@ -18,7 +18,7 @@ import path from "node:path";
 if (!process.env.POSTGRES_URL) {
   try {
     const envPath = path.resolve(process.cwd(), ".env.local");
-    for (const line of fs.readFileSync(envPath, "utf8").split("\n")) {
+    for (const line of fs.readFileSync(envPath, "utf8").split(/\r?\n/)) {
       const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
       if (m && !process.env[m[1]]) {
         process.env[m[1]] = m[2].replace(/^["']|["']$/g, "");
