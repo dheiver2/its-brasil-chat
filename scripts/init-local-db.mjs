@@ -12,15 +12,19 @@ import bcrypt from "bcryptjs";
 import fs from "node:fs";
 import path from "node:path";
 
-// Carrega .env.local
+// Carrega variáveis de um arquivo .env (ordem: .env.local → .env.production → .env).
+// Funciona igual em Windows/Linux/macOS.
 if (!process.env.POSTGRES_URL) {
-  try {
-    const envPath = path.resolve(process.cwd(), ".env.local");
-    for (const line of fs.readFileSync(envPath, "utf8").split("\n")) {
-      const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
-      if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, "");
-    }
-  } catch { /* segue sem .env.local */ }
+  for (const name of [".env.local", ".env.production", ".env"]) {
+    try {
+      const envPath = path.resolve(process.cwd(), name);
+      if (!fs.existsSync(envPath)) continue;
+      for (const line of fs.readFileSync(envPath, "utf8").split(/\r?\n/)) {
+        const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
+        if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, "");
+      }
+    } catch { /* tenta o próximo */ }
+  }
 }
 
 const url = process.env.POSTGRES_URL;
