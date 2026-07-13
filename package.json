@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "sync-pdf-worker": "bash scripts/sync-pdf-worker.sh",
-    "postinstall": "bash scripts/sync-pdf-worker.sh || true",
+    "sync-pdf-worker": "node scripts/sync-pdf-worker.mjs",
+    "postinstall": "node scripts/sync-pdf-worker.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
