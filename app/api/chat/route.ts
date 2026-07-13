@@ -4,6 +4,7 @@ export const runtime = "edge";
 export const dynamic = "force-dynamic";
 
 import { readSessionEdge } from "../../lib/auth-edge";
+import { preloadModel } from "../../lib/preload";
 import { rateLimit, LIMITS, tooManyRequests } from "../../lib/ratelimit";
 import { formatSearchContext } from "../../lib/search";
 import type { SearchResult } from "../../lib/search";
@@ -306,6 +307,10 @@ export async function POST(req: Request) {
           return;
         }
         if (result.emitted > 0) { controller.close(); return; } // sucesso
+        // Zero tokens = provável OOM/falha do modelo. Dispara a pré-carga dele
+        // SEM await (fire-and-forget) para esquentar para a próxima tentativa,
+        // e segue para o próximo modelo do failover.
+        void preloadModel(modelId);
         lastErr = result.providerErr || lastErr; // falhou sem emitir → próximo modelo
       }
       // Nenhum modelo gerou conteúdo: mensagem clara em vez de resposta vazia.

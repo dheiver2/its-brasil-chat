@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 
 import { brandModel, pickModel } from "../../lib/mangaba";
 import { readSession } from "../../lib/auth";
+import { preloadModel } from "../../lib/preload";
 
 export async function GET(req: Request) {
   if (!readSession(req.headers.get("cookie"))) {
@@ -31,6 +32,9 @@ export async function GET(req: Request) {
     const names: string[] = (data.data || []).map((m: { id: string }) => m.id);
     const real = configured || pickModel(names);
     if (!real) throw new Error();
+    // Aquecimento: dispara a pré-carga do modelo padrão SEM await (fire-and-forget),
+    // para não atrasar nem quebrar a resposta do status. Mitiga OOM no 1º chat.
+    void preloadModel(real);
     // Retorna também a lista completa de modelos disponíveis para o seletor
     return Response.json({
       online: true,
