@@ -1,0 +1,40 @@
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+import { readSession } from "../../lib/auth";
+import { listConversations, upsertConversation, migrateConversations } from "../../lib/db";
+import { validateConversationInput } from "../../lib/conversation-validate";
+
+export async function GET(req: Request) {
+  const username = readSession(req.headers.get("cookie"));
+  if (!username) return Response.json({ error: "Não autorizado" }, { status: 401 });
+  try {
+    await migrateConversations();
+    const conversations = await listConversations(username);
+    return Response.json({ conversations });
+  } catch (e) {
+    console.error("list conversations error", e);
+    return Response.json({ error: "Erro interno" }, { status: 500 });
+  }
+}
+
+export async function POST(req: Request) {
+  const username = readSession(req.headers.get("cookie"));
+  if (!username) return Response.json({ error: "Não autorizado" }, { status: 401 });
+  try {
+    const { id, title, messages, model, folder, client, sharedWith } = await req.json();
+    if (!id || typeof id !== "string") return Response.json({ error: "id inválido" }, { status: 400 });
+    let clean;
+    try {
+      clean = validateConversationInput(title, messages, model);
+    } catch (err) {
+      return Response.json({ error: (err as Error).message }, { status: 400 });
+    }
+    await migrateConversations();
+    await upsertConversation(id, username, clean.title, clean.messages, clean.model, folder || null, null, client, sharedWith);
+    return Response.json({ ok: true }, { status: 201 });
+  } catch (e) {
+    console.error("create conversation error", e);
+    return Response.json({ error: "Erro interno" }, { status: 500 });
+  }
+}

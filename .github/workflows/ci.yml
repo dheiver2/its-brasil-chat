@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Sem config de ESLint versionada no repo (next lint pede setup
+      # interativo na 1ª execução) — não bloqueia o pipeline.
+      - name: Lint
+        run: npm run lint
+        continue-on-error: true
+
+      - name: Testes
+        run: npm test
+
+      # Não requer POSTGRES_URL/OPENAI_* — essas variáveis só são lidas
+      # em runtime, não durante `next build`.
+      - name: Build
+        run: npm run build

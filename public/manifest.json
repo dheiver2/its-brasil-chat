@@ -1,0 +1,13 @@
+{
+  "name": "Ítala — ITS Brasil",
+  "short_name": "Ítala",
+  "description": "Assistente virtual inteligente da ITS Brasil — internet e conectividade",
+  "start_url": "/chat",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#6FCD00",
+  "icons": [
+    { "src": "/logo-its.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/logo-its.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
