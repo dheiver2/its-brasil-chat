@@ -1,25 +1,14 @@
-// Service Worker básico para PWA — cache de assets estáticos
-const CACHE_NAME = "a1-chat-v1";
-const STATIC_URLS = ["/logo-its.png", "/itala.png"];
-
-self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_URLS))
-  );
-  self.skipWaiting();
-});
-
+// Service Worker DESATIVADO — auto-desregistra e limpa caches.
+// (Removido por causar conflito de hidratação com o Next dev/HMR.)
+self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (event) => {
-  event.waitUntil(clients.claim());
-});
-
-self.addEventListener("fetch", (event) => {
-  if (event.request.method !== "GET") return;
-  const url = new URL(event.request.url);
-  // Cache first para assets estáticos
-  if (STATIC_URLS.includes(url.pathname)) {
-    event.respondWith(
-      caches.match(event.request).then((cached) => cached || fetch(event.request))
-    );
-  }
+  event.waitUntil((async () => {
+    try {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((k) => caches.delete(k)));
+      await self.registration.unregister();
+      const cs = await self.clients.matchAll({ type: "window" });
+      cs.forEach((c) => c.navigate(c.url));
+    } catch (e) { /* noop */ }
+  })());
 });

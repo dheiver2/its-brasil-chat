@@ -10,7 +10,9 @@
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "start:local": "next start -p 3020",
+    "local": "next build && next start -p 3020"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
