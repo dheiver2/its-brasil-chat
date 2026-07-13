@@ -25,7 +25,7 @@ node scripts/init-local-db.mjs           # cria users/conversations/knowledge + 
 # ou:  node scripts/init-local-db.mjs email@dominio.com senha
 ```
 
-**Conta admin já criada:** `dheiver.santos@gmail.com` / `its@2026`
+**Crie a conta admin:** `node scripts/init-local-db.mjs seu-email@dominio.com SuaSenhaForte`
 
 **Auto-cadastro (aberto):** cada colaborador cria a própria conta em `/chat` →
 botão **"Criar conta"** (e-mail + senha de no mínimo 8 caracteres). Não precisa mais
@@ -37,7 +37,7 @@ Já configurado. Aponta o motor de IA para o gateway Mangaba (ngrok) e o banco p
 
 ```
 POSTGRES_URL=postgres://itsbrasil:itsbrasil@localhost:5433/itsbrasil
-OPENAI_BASE_URL=https://walton-undepreciatory-tracee.ngrok-free.dev/v1
+OPENAI_BASE_URL=https://SEU-GATEWAY.ngrok-free.dev/v1
 OPENAI_MODEL=mangaba-pro
 OPENAI_MODEL_FALLBACKS=mangaba-max,mangaba-lite-q4
 OPENAI_VISION_MODEL=mangaba-vision-q8

@@ -52,9 +52,9 @@ describe("migração transparente HMAC → bcrypt", () => {
 
 describe("sessão (createSessionToken / readSession)", () => {
   it("roundtrip: token criado é lido de volta", () => {
-    const token = createSessionToken("dheiver");
+    const token = createSessionToken("usuario");
     const cookie = `a1_session=${encodeURIComponent(token)}`;
-    expect(readSession(cookie)).toBe("dheiver");
+    expect(readSession(cookie)).toBe("usuario");
   });
 
   it("retorna null para cookie ausente", () => {
@@ -64,14 +64,14 @@ describe("sessão (createSessionToken / readSession)", () => {
   });
 
   it("rejeita token adulterado (assinatura inválida)", () => {
-    const token = createSessionToken("dheiver");
+    const token = createSessionToken("usuario");
     const tampered = token.slice(0, -3) + "xxx";
     const cookie = `a1_session=${encodeURIComponent(tampered)}`;
     expect(readSession(cookie)).toBeNull();
   });
 
   it("rejeita payload modificado", () => {
-    const token = createSessionToken("dheiver");
+    const token = createSessionToken("usuario");
     const [, sig] = token.split(".");
     const fakePayload = Buffer.from(JSON.stringify({ u: "admin", exp: Date.now() + 99999 })).toString("base64url");
     const cookie = `a1_session=${encodeURIComponent(`${fakePayload}.${sig}`)}`;

@@ -2,13 +2,15 @@
 // Init do banco LOCAL (Postgres em Docker) — cria as tabelas e
 // semeia uma conta admin. Uso 100% local, SEM SSL.
 //
-//   node scripts/init-local-db.mjs [email] [senha]
-//   (padrão: dheiver.santos@gmail.com / its@2026)
+//   node scripts/init-local-db.mjs <email> [senha]
+//   - email: obrigatório (a conta admin a criar)
+//   - senha: opcional; se omitida, gera uma aleatória e imprime no final
 //
 // Lê POSTGRES_URL do .env.local se não estiver no ambiente.
 // ============================================================
 import { Pool } from "pg";
 import bcrypt from "bcryptjs";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -30,8 +32,13 @@ if (!process.env.POSTGRES_URL) {
 const url = process.env.POSTGRES_URL;
 if (!url) { console.error("POSTGRES_URL não definida (ponha no .env.local)."); process.exit(1); }
 
-const email = (process.argv[2] || "dheiver.santos@gmail.com").trim().toLowerCase();
-const senha = process.argv[3] || "its@2026";
+const email = (process.argv[2] || "").trim().toLowerCase();
+if (!email) {
+  console.error("Uso: node scripts/init-local-db.mjs <email> [senha]");
+  process.exit(1);
+}
+// Senha informada ou aleatória (impressa no final).
+const senha = process.argv[3] || crypto.randomBytes(9).toString("base64url");
 
 // Local = sem SSL.
 const pool = new Pool({ connectionString: url, ssl: false });

@@ -9,7 +9,6 @@
 
 // E-mail → nome de exibição.
 const TEAM: Record<string, string> = {
-  "dheiver.santos@gmail.com": "Dheiver Santos",
   // "fulano@itsbrasil.net": "Fulano de Tal",
 };
 
