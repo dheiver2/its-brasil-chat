@@ -1,10 +1,12 @@
 import type { Message } from "./types";
 
 export function prepareHistoryForModel(messages: Message[], maxMessages = 24) {
+  // Envia ao modelo APENAS role + content (descarta image/sources/reactions —
+  // não são contexto para o LLM e a miniatura em base64 pesaria muito).
   const normalized = messages
     .filter((message) => Boolean(message?.content || message?.role))
     .map((message) => ({
-      ...message,
+      role: message.role,
       content: typeof message.content === "string" ? message.content : "",
     }));
 

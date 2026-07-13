@@ -16,6 +16,15 @@ function balanceCodeFences(text: string): string {
   return fences % 2 === 1 ? text + "\n```" : text;
 }
 
+/** Remove os blocos de raciocínio <think>…</think> que alguns modelos emitem
+ *  (incl. um <think> ainda não fechado, durante o streaming). */
+export function stripThink(text: string): string {
+  return text
+    .replace(/<think>[\s\S]*?<\/think>/gi, "")
+    .replace(/<think>[\s\S]*$/i, "")
+    .replace(/^\s*\n/, "");
+}
+
 function splitCitations(text: string, sources: Source[]): any[] {
   const out: any[] = [];
   const re = /\[(\d+)\]/g;
@@ -69,7 +78,7 @@ function rehypeCitations(sources?: Source[]) {
 }
 
 export const MessageContent = memo(function MessageContent({ content, sources }: { content: string; sources?: Source[] }) {
-  const safe = balanceCodeFences(content);
+  const safe = balanceCodeFences(stripThink(content));
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm, remarkMath]}

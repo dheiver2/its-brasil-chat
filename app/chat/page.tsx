@@ -13,7 +13,7 @@ import { KnowledgeManager } from "./components/KnowledgeManager";
 import { TokenCounter } from "./components/TokenCounter";
 import { SkeletonLoading } from "./components/SkeletonLoading";
 import { Sidebar } from "./components/Sidebar";
-import { MessageContent } from "./components/MessageContent";
+import { MessageContent, stripThink } from "./components/MessageContent";
 import { Sources } from "./components/Sources";
 import { ArtifactContext, type OpenArtifact } from "./components/ArtifactContext";
 import { ArtifactPanel } from "./components/ArtifactPanel";
@@ -716,7 +716,27 @@ export default function ChatPage() {
     const res = await fetch("/api/image", { method: "POST", body: fd });
     const data = await res.json().catch(() => null);
     if (!res.ok) throw new Error(data?.error || "Falha ao analisar a imagem.");
-    return (data?.description || "").trim();
+    return stripThink((data?.description || "").trim()).trim();
+  }
+
+  /** Gera uma miniatura leve (JPEG, máx. 360px) da imagem para exibir na bolha. */
+  async function makeThumb(dataUrl: string): Promise<string> {
+    try {
+      const img = new Image();
+      await new Promise<void>((res, rej) => { img.onload = () => res(); img.onerror = rej; img.src = dataUrl; });
+      const max = 360;
+      const scale = Math.min(1, max / Math.max(img.width, img.height));
+      const w = Math.max(1, Math.round(img.width * scale));
+      const h = Math.max(1, Math.round(img.height * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return dataUrl;
+      ctx.drawImage(img, 0, 0, w, h);
+      return canvas.toDataURL("image/jpeg", 0.8);
+    } catch {
+      return dataUrl;
+    }
   }
 
   async function send(text: string) {
@@ -752,6 +772,7 @@ export default function ChatPage() {
 
     const isFirst = messages.length === 0;
     const userMsg: Message = { role: "user", content: fullContent };
+    if (attachedImage) userMsg.image = await makeThumb(attachedImage.dataUrl);
     const history = prepareHistoryForModel([...messages, userMsg], 24);
     updateCurrent((c) => ({
       ...c,
@@ -1580,7 +1601,12 @@ export default function ChatPage() {
                         </div>
                       ) : (
                         <>
-                          <div className="bubble">{m.content}</div>
+                          <div className="bubble">
+                            {m.image && (
+                              <img src={m.image} alt="Imagem anexada" className="msg-image" />
+                            )}
+                            {stripThink(m.content)}
+                          </div>
                           {!loading && (
                             <button className="msg-action edit" onClick={() => startEdit(i, m.content)} aria-label="Editar mensagem">
                               <svg width="14" height="14" viewBox="0 0 24 24" fill="none">

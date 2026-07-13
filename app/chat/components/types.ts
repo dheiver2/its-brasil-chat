@@ -5,6 +5,8 @@ export interface Message {
   content: string;
   sources?: Source[];
   reactions?: { like?: boolean; dislike?: boolean };
+  /** Miniatura (dataURL) de imagem anexada, exibida na bolha do usuário. Não vai ao modelo. */
+  image?: string;
 }
 export interface Conversation {
   id: string;

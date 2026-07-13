@@ -1041,6 +1041,17 @@ body {
   overflow-wrap: anywhere;
 }
 
+.row.user .bubble .msg-image {
+  display: block;
+  max-width: 260px;
+  max-height: 260px;
+  width: auto;
+  height: auto;
+  border-radius: 12px;
+  margin-bottom: 8px;
+  border: 1px solid var(--borda);
+}
+
 /* user message actions (edit) */
 .row.user {
   flex-direction: column;
