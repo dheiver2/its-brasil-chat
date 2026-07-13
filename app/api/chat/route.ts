@@ -246,51 +246,73 @@ export async function POST(req: Request) {
     }
   }
 
-  let upstream: Response | null = null;
-  for (const modelId of models) {
-    upstream = await openUpstream(modelId);
-    if (upstream) break;
-  }
-  if (!upstream) {
-    return new Response(
-      JSON.stringify({ error: "Não foi possível conectar ao serviço de IA." }),
-      { status: 502, headers: { "Content-Type": "application/json" } }
-    );
-  }
-
-  // ── Stream de tokens para o browser ──────────────────────────────────
-  // Parseia o SSE do provedor e re-emite apenas o texto dos tokens,
-  // sem overhead de JSON por parte do browser.
+  // ── Stream de tokens para o browser, com FAILOVER real entre modelos ──
+  // Parseia o SSE do provedor e re-emite só o texto dos tokens. Se um modelo
+  // conecta mas não gera NADA (ex.: OOM/llama_decode no meio), tenta o próximo
+  // ANTES de enviar qualquer coisa ao cliente — só assim o fallback é útil.
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
 
+  /** Consome o stream de um modelo. Retorna nº de tokens emitidos + erro do provedor. */
+  async function pipeModel(
+    upstream: Response,
+    controller: ReadableStreamDefaultController
+  ): Promise<{ emitted: number; providerErr: string }> {
+    const reader = upstream.body!.getReader();
+    let buffer = "";
+    let emitted = 0;
+    let providerErr = "";
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+        for (const line of lines) {
+          const t = line.trim();
+          if (!t.startsWith("data:")) {
+            try { const j = JSON.parse(t); if (j?.error?.message || j?.detail) providerErr = j.error?.message || j.detail; } catch { /* não-JSON */ }
+            continue;
+          }
+          const data = t.slice(5).trim();
+          if (data === "[DONE]") return { emitted, providerErr };
+          try {
+            const json = JSON.parse(data);
+            const token = json.choices?.[0]?.delta?.content;
+            if (token) { controller.enqueue(encoder.encode(token)); emitted++; }
+            else if (json?.error?.message || json?.detail) providerErr = json.error?.message || json.detail;
+          } catch { /* chunk parcial/keepalive */ }
+        }
+      }
+    } catch (e) {
+      if (emitted > 0) throw e; // já enviamos conteúdo → propaga (não dá pra refazer)
+      providerErr = providerErr || String((e as Error)?.message || e);
+    }
+    return { emitted, providerErr };
+  }
+
   const stream = new ReadableStream({
     async start(controller) {
-      const reader = upstream.body!.getReader();
-      let buffer = "";
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() || "";
-          for (const line of lines) {
-            const trimmedLine = line.trim();
-            if (!trimmedLine.startsWith("data:")) continue;
-            const data = trimmedLine.slice(5).trim();
-            if (data === "[DONE]") { controller.close(); return; }
-            try {
-              const json = JSON.parse(data);
-              const token = json.choices?.[0]?.delta?.content;
-              if (token) controller.enqueue(encoder.encode(token));
-            } catch { /* ignorar chunks parciais/keepalive */ }
-          }
+      let lastErr = "";
+      for (const modelId of models) {
+        const upstream = await openUpstream(modelId);
+        if (!upstream) { lastErr = lastErr || `modelo ${modelId} indisponível`; continue; }
+        let result: { emitted: number; providerErr: string };
+        try {
+          result = await pipeModel(upstream, controller);
+        } catch (e) {
+          controller.error(e); // erro após já ter emitido tokens
+          return;
         }
-      } catch (err) {
-        controller.error(err);
-        return;
+        if (result.emitted > 0) { controller.close(); return; } // sucesso
+        lastErr = result.providerErr || lastErr; // falhou sem emitir → próximo modelo
       }
+      // Nenhum modelo gerou conteúdo: mensagem clara em vez de resposta vazia.
+      const msg = /mem[óo]ria|insuficiente|out of memory|oom|decode returned/i.test(lastErr)
+        ? "⚠️ O serviço de IA está sobrecarregado/sem memória agora. Tente novamente em instantes."
+        : `⚠️ Não foi possível gerar a resposta agora${lastErr ? ` (${lastErr.slice(0, 120)})` : ""}. Tente novamente.`;
+      controller.enqueue(encoder.encode(msg));
       controller.close();
     },
   });
