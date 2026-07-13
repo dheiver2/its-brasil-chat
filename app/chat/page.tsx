@@ -565,7 +565,7 @@ export default function ChatPage() {
     setPasswordInput("");
   }
 
-  async function runCompletion(history: Message[], modelOverride?: string) {
+  async function runCompletion(history: Message[], modelOverride?: string, imageDataUrl?: string | null) {
     setError("");
     setLoading(true);
     autoScrollRef.current = true;
@@ -623,6 +623,8 @@ export default function ChatPage() {
           searchQuery,
           customInstructions: [STYLES.find((s) => s.id === writingStyle)?.prompt, customInstructions]
             .filter(Boolean).join("\n\n") || undefined,
+          // Chat multimodal: só nesta rodada, manda a imagem para o modelo de visão.
+          ...(imageDataUrl ? { image: imageDataUrl } : {}),
         }),
         signal: controller.signal,
       });
@@ -707,18 +709,6 @@ export default function ChatPage() {
     }
   }
 
-  /** Descreve a imagem anexada no modelo de visão Mangaba e retorna o texto. */
-  async function describeAttachedImage(img: ImageAttach, question: string): Promise<string> {
-    const blob = await (await fetch(img.dataUrl)).blob();
-    const fd = new FormData();
-    fd.append("file", blob, img.name || "imagem.png");
-    fd.append("prompt", question || "Descreva esta imagem em detalhes.");
-    const res = await fetch("/api/image", { method: "POST", body: fd });
-    const data = await res.json().catch(() => null);
-    if (!res.ok) throw new Error(data?.error || "Falha ao analisar a imagem.");
-    return stripThink((data?.description || "").trim()).trim();
-  }
-
   /** Gera uma miniatura leve (JPEG, máx. 360px) da imagem para exibir na bolha. */
   async function makeThumb(dataUrl: string): Promise<string> {
     try {
@@ -748,24 +738,15 @@ export default function ChatPage() {
     }
 
     let fullContent = "";
+    // Imagem (dataURL) a mandar DIRETO ao modelo de visão nesta rodada.
+    let imageForModel: string | null = null;
     if (attachedFile) {
       fullContent = `Arquivo: ${attachedFile.name}\n\`\`\`\n${attachedFile.content.slice(0, 24_000)}\n\`\`\`\n\n${rawContent || "Resuma o conteúdo acima."}`;
     } else if (attachedImage) {
-      // Dá "olhos" ao chat de texto: descreve a imagem no modelo de visão e
-      // injeta a descrição no contexto enviado à Ítala.
-      setImageAnalyzing(true);
-      let description = "";
-      try {
-        description = await describeAttachedImage(attachedImage, rawContent);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Falha ao analisar a imagem.");
-        setImageAnalyzing(false);
-        return;
-      }
-      setImageAnalyzing(false);
-      fullContent = description
-        ? `[Imagem anexada: ${attachedImage.name}]\n\nDescrição visual (Mangaba Vision):\n${description}\n\n${rawContent || "Comente sobre a imagem acima."}`
-        : `[Imagem anexada: ${attachedImage.name}]\n\n${rawContent || "Descreva esta imagem."}`;
+      // Chat multimodal: a imagem vai DIRETO ao modelo de visão (o modelo VÊ a
+      // imagem ao responder). O texto puro fica no histórico/exibição.
+      fullContent = rawContent || "Analise esta imagem.";
+      imageForModel = attachedImage.dataUrl;
     } else {
       fullContent = rawContent;
     }
@@ -783,7 +764,7 @@ export default function ChatPage() {
     setAttachedFile(null);
     setAttachedImage(null);
     if (textareaRef.current) textareaRef.current.style.height = "auto";
-    runCompletion(history);
+    runCompletion(history, undefined, imageForModel);
   }
 
   function stop() { abortRef.current?.abort(); }

@@ -125,11 +125,14 @@ export async function POST(req: Request) {
   let searchQuery = "";
   let clientModel: string | null = null;
   let customInstructions: string | null = null;
+  let imageDataUrl: string | null = null; // dataURL da imagem anexada nesta rodada (visão)
   try {
     const body = await req.json();
     messages = body.messages;
     // Modelo vindo do cliente (seletor de modelo no frontend)
     if (typeof body.model === "string" && body.model.trim()) clientModel = body.model.trim();
+    // Imagem (dataURL) para chat multimodal com visão — vai DIRETO ao modelo.
+    if (typeof body.image === "string" && body.image.trim()) imageDataUrl = body.image;
     // Instruções personalizadas do usuário
     if (typeof body.customInstructions === "string" && body.customInstructions.trim()) {
       customInstructions = body.customInstructions.trim().slice(0, 2000);
@@ -215,11 +218,45 @@ export async function POST(req: Request) {
     .split(",")
     .map((m) => m.trim())
     .filter(Boolean);
-  const models = Array.from(
+  let models = Array.from(
     new Set(
       [requestedModel, ...fallbackModels].filter(Boolean)
     )
   );
+
+  // ── CHAT MULTIMODAL COM VISÃO ────────────────────────────────────────
+  // Se o cliente anexou uma imagem, mandamos a imagem DIRETO ao modelo de
+  // visão no formato multimodal da OpenAI (o modelo VÊ a imagem ao responder),
+  // em vez do fluxo antigo "descrever → injetar texto".
+  if (imageDataUrl) {
+    const visionModel = process.env.OPENAI_VISION_MODEL || "mangaba-vision-q8";
+    void preloadModel(visionModel); // esquenta o modelo de visão (fire-and-forget)
+    models = [visionModel];         // visão é o modelo certo — ignora OPENAI_MODEL/fallbacks
+    // Prompt ENXUTO focado em visão. O prompt pesado (base de conhecimento +
+    // "especificação primeiro" + artifacts) enviesa o modelo de visão a inventar
+    // conteúdo (ex.: "plano de 150 Mbps") ou gerar HTML. Aqui ele só descreve o
+    // que realmente vê. E deixa explícito que PODE ver imagens.
+    if (payloadMessages[0]?.role === "system") {
+      (payloadMessages[0] as { content: string }).content =
+        "Você é a Ítala, assistente da ITS Brasil, e CONSEGUE ver imagens. " +
+        "Uma imagem foi anexada nesta mensagem. Analise APENAS o conteúdo VISUAL real da imagem " +
+        "(objetos, cores, textos visíveis, layout) e responda em português do Brasil, de forma objetiva. " +
+        "NÃO invente informações que não estejam na imagem, NÃO deduza planos/preços da empresa e " +
+        "NÃO gere blocos de código/HTML. Se algo não estiver visível, diga que não é possível ver.";
+    }
+    // Transforma SÓ a última mensagem role:"user" em multimodal; as demais
+    // continuam string. O system prompt (grounding) permanece intacto.
+    for (let i = payloadMessages.length - 1; i >= 0; i--) {
+      if (payloadMessages[i].role === "user") {
+        const originalText = payloadMessages[i].content as string;
+        (payloadMessages[i] as { content: unknown }).content = [
+          { type: "text", text: originalText },
+          { type: "image_url", image_url: { url: imageDataUrl } },
+        ];
+        break;
+      }
+    }
+  }
 
   // Timeout só para a CONEXÃO/headers — não corta o streaming já iniciado.
   const CONNECT_TIMEOUT_MS = 20_000;
