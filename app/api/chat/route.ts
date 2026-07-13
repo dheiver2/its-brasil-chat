@@ -7,6 +7,27 @@ import { readSessionEdge } from "../../lib/auth-edge";
 import { rateLimit, LIMITS, tooManyRequests } from "../../lib/ratelimit";
 import { formatSearchContext } from "../../lib/search";
 import type { SearchResult } from "../../lib/search";
+import { KNOWLEDGE_BASE } from "../../lib/knowledge-base";
+
+// ── RAG leve sobre a base estática da ITS (edge-safe, sem banco) ──────
+// Casa termos distintos da pergunta contra os chunks e devolve os melhores,
+// para GROUNDING: a Ítala responde sobre os produtos reais da ITS, não de memória.
+const normText = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+function retrieveKnowledge(query: string, limit = 4): string[] {
+  const terms = Array.from(new Set(normText(query).split(/[^a-z0-9]+/).filter((w) => w.length > 2)));
+  if (!terms.length) return [];
+  const scored = KNOWLEDGE_BASE.map((d) => {
+    const body = normText(d.content), title = normText(d.title);
+    let distinct = 0, occ = 0, th = 0;
+    for (const t of terms) {
+      const n = body.split(t).length - 1;
+      if (n > 0) { distinct += 1; occ += n; }
+      if (title.includes(t)) th += 1;
+    }
+    return { d, score: distinct + th * 0.5 + Math.min(occ, 10) * 0.1, distinct };
+  }).filter((s) => s.distinct >= 1).sort((a, b) => b.score - a.score);
+  return scored.slice(0, limit).map((s) => `${s.d.title}: ${s.d.content}`.slice(0, 900));
+}
 
 // Base do system prompt — enviado SEMPRE (curto, para economizar tokens).
 const BASE_PROMPT =
@@ -150,10 +171,16 @@ export async function POST(req: Request) {
   const recentUserText = [...messages].reverse().find((m) => m.role === "user")?.content || "";
   const systemPrompt = buildSystemPrompt(recentUserText);
 
+  // ── GROUNDING: base de conhecimento da ITS relevante à pergunta ──────
+  const kbChunks = retrieveKnowledge(recentUserText);
+  const knowledgeContext = kbChunks.length
+    ? `\n\nBASE DE CONHECIMENTO DA ITS BRASIL (responda com base ESTRITAMENTE nestes dados quando a pergunta for sobre a empresa, seus planos, serviços ou cobertura). Se a informação pedida (ex.: preço, plano ou velocidade específica) NÃO estiver aqui, diga que não tem esse dado e oriente falar com a ITS Brasil — NUNCA invente planos, velocidades, preços ou números:\n${kbChunks.map((c, i) => `[${i + 1}] ${c}`).join("\n\n")}`
+    : "";
+
   // ── Orçamento de contexto: corta histórico antigo (preservando a 1ª msg
-  //    e as mais recentes) até caber no teto de chars. A busca, quando há,
-  //    consome parte do orçamento. Economiza tokens em conversas longas.
-  const searchChars = searchContext.length;
+  //    e as mais recentes) até caber no teto de chars. Busca + base de
+  //    conhecimento consomem parte do orçamento. Economiza tokens.
+  const searchChars = searchContext.length + knowledgeContext.length;
   let budget = Math.max(2_000, CONTEXT_CHAR_BUDGET - searchChars);
   const histChars = (arr: ChatMessage[]) => arr.reduce((n, m) => n + m.content.length, 0);
   while (trimmed.length > 2 && histChars(trimmed) > budget) {
@@ -173,9 +200,7 @@ export async function POST(req: Request) {
   const payloadMessages = [
     {
       role: "system",
-      content: searchContext
-        ? `${systemPrompt}${instructionsBlock}\n\n${searchContext}`
-        : `${systemPrompt}${instructionsBlock}`,
+      content: `${systemPrompt}${instructionsBlock}${knowledgeContext}${searchContext ? `\n\n${searchContext}` : ""}`,
     },
     ...trimmed,
   ];
