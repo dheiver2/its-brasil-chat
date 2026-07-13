@@ -31,6 +31,24 @@ const SUGGESTIONS = [
   "Crie uma página HTML de boas-vindas (artifact)",
 ];
 
+// Heurística conservadora de busca web automática: retorna true só quando o
+// texto do usuário claramente pede informação externa/atual. Perguntas gerais
+// sobre a ITS/planos NÃO disparam (isso é grounding, não busca).
+const AUTO_SEARCH_REGEX = new RegExp(
+  [
+    "pesquis", "busque", "procure", "googl",            // verbos de busca
+    "hoje", "atual", "agora", "nesta semana", "recente", // atualidade
+    "202[4-9]",                                          // anos recentes
+    "[uú]ltima[s]? not[ií]cia", "cota[çc][ãa]o",         // notícias/cotação
+    "pre[çc]o de mercado", "quanto custa hoje",          // preço de mercado
+    "https?://",                                         // URL explícita
+  ].join("|"),
+  "i"
+);
+function shouldAutoSearch(text: string): boolean {
+  return AUTO_SEARCH_REGEX.test(text || "");
+}
+
 const storageKeyFor = (user: string) => `its-conversations:${user}`;
 const FOLDERS_KEY = "its-folders";
 const STYLE_KEY = "its-writing-style";
@@ -599,8 +617,8 @@ export default function ChatPage() {
         } catch {}
       }
 
-      // Busca na web (se ativada)
-      if (webSearch && lastUser) {
+      // Busca na web: toggle manual (força ligado) OU heurística automática.
+      if (lastUser && (webSearch || shouldAutoSearch(lastUser.content))) {
         searchQuery = lastUser.content.replace(/```[\s\S]*?```/g, "").trim().slice(0, 500);
         try {
           const sr = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}`, { signal: controller.signal });

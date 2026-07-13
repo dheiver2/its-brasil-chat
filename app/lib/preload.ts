@@ -7,7 +7,7 @@
 // esquentar o modelo antes que ele seja realmente necessário.
 
 /** Deriva a origem do motor a partir do OPENAI_BASE_URL (que termina em /v1). */
-function engineOrigin(): string {
+export function engineOrigin(): string {
   const base = (process.env.OPENAI_BASE_URL || "https://router.huggingface.co/v1").replace(/\/$/, "");
   return base.replace(/\/v1$/, "");
 }

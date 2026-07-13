@@ -7,6 +7,18 @@ export default function AdminPage() {
   const [error, setError] = useState("");
   const [newEmail, setNewEmail] = useState("");
   const [newPass, setNewPass] = useState("");
+  // Status do gateway Mangaba (health-check)
+  const [gw, setGw] = useState<any>(null);
+  const [gwLoading, setGwLoading] = useState(true);
+
+  async function loadGateway() {
+    setGwLoading(true);
+    try {
+      const res = await fetch("/api/admin/gateway", { cache: "no-store" });
+      setGw(res.ok ? await res.json() : { online: false });
+    } catch { setGw({ online: false }); }
+    finally { setGwLoading(false); }
+  }
 
   async function loadUsers() {
     try {
@@ -17,7 +29,7 @@ export default function AdminPage() {
     finally { setLoading(false); }
   }
 
-  useEffect(() => { loadUsers(); }, []);
+  useEffect(() => { loadUsers(); loadGateway(); }, []);
 
   async function createUser() {
     if (!newEmail || !newPass) return;
@@ -53,6 +65,28 @@ export default function AdminPage() {
         <h1>Admin</h1>
       </div>
       {error && <div style={{ color: "#c0392b", marginBottom: 16 }}>{error}</div>}
+
+      <section>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <h2 style={{ margin: 0 }}>Status do Gateway</h2>
+          <button onClick={loadGateway} style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid var(--borda)", background: "transparent", cursor: "pointer", fontFamily: "inherit", fontSize: "0.8rem" }}>Atualizar</button>
+        </div>
+        <div style={{ margin: "12px 0 24px", padding: 14, borderRadius: 10, border: "1px solid var(--borda)", background: "var(--fundo-suave, transparent)" }}>
+          {gwLoading ? (
+            <p style={{ margin: 0, color: "var(--texto-suave)" }}>Consultando…</p>
+          ) : !gw?.online ? (
+            <p style={{ margin: 0, color: "#c0392b" }}>Gateway indisponível</p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: "0.9rem" }}>
+              <div><strong>Modelos carregados:</strong> {(gw.loaded_models?.length ? gw.loaded_models.join(", ") : "—")}</div>
+              <div><strong>Memória:</strong> {gw.used_gb ?? "?"} / {gw.budget_gb ?? "?"} GB</div>
+              <div><strong>Ready:</strong> {gw.ready ? "sim" : "não"}</div>
+              <div><strong>Fila:</strong> {gw.queue_depth ?? 0} / {gw.queue_capacity ?? 0}</div>
+              <div><strong>Total de modelos:</strong> {gw.total_models ?? "—"}</div>
+            </div>
+          )}
+        </div>
+      </section>
 
       <section>
         <h2>Criar usuário</h2>
