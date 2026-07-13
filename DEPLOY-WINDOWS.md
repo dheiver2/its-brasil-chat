@@ -106,41 +106,36 @@ sessão é `Secure` — **sem HTTPS o login não funciona**.
 2. Em ARR, habilite **"Enable proxy"**.
 3. Crie um site no IIS com binding **HTTPS (443)** e um **certificado TLS** (o domínio da ITS,
    ou um cert interno).
-4. Adicione uma regra de **URL Rewrite** encaminhando tudo para o app:
-
-`web.config` na raiz do site:
-```xml
-<configuration>
-  <system.webServer>
-    <rewrite>
-      <rules>
-        <rule name="ReverseProxyToNext" stopProcessing="true">
-          <match url="(.*)" />
-          <action type="Rewrite" url="http://localhost:3000/{R:1}" />
-          <serverVariables>
-            <set name="HTTP_X_FORWARDED_PROTO" value="https" />
-          </serverVariables>
-        </rule>
-      </rules>
-    </rewrite>
-  </system.webServer>
-</configuration>
-```
-5. Redirecione HTTP→HTTPS (regra de redirect do IIS) para não cair no cookie inseguro.
+4. Use o **`web.config` pronto** em [`deploy/web.config`](deploy/web.config) — copie-o para a raiz
+   do site IIS. Ele já faz: redirect HTTP→HTTPS, reverse proxy para `localhost:3000` e envia
+   `X-Forwarded-Proto=https` (essencial para o cookie `Secure` funcionar).
 
 > Alternativa ao IIS: **nginx para Windows** ou **Caddy** (Caddy resolve o TLS sozinho) como reverse proxy.
 
 ---
 
-## 8. Gateway de IA (decisão pendente)
+## 8. Gateway de IA (em outra máquina da rede)
 
-O app só conversa se `OPENAI_BASE_URL` apontar para um gateway Mangaba **alcançável a partir
-do Windows Server**. Dois caminhos:
+O gateway Mangaba roda em **outra máquina** e é acessado **direto pela rede** (sem túnel/ngrok).
+No `.env.production`, aponte para o IP:porta dele:
 
-- **Gateway em outra máquina/rede** (recomendado se já existe): aponte `OPENAI_BASE_URL` para
-  o IP:porta dele. Se exigir autenticação, preencha `OPENAI_API_KEY` com a chave `mk_live_...`.
-- **Gateway no próprio Windows Server**: exige portar o `mangaba-gateway` (Python + modelos GGUF)
-  para Windows — trabalhoso; avaliar caso a caso.
+```
+OPENAI_BASE_URL=http://192.168.X.Y:PORTA/v1     # IP da máquina do gateway
+OPENAI_API_KEY=none                             # ou a chave mk_live_... se ele exigir
+```
+
+**Importante:**
+- A chamada app → gateway é **servidor-para-servidor** (feita pelo Node, não pelo navegador).
+  Por isso o gateway pode ser **HTTP puro na LAN** — não precisa de HTTPS entre app e gateway
+  (o HTTPS do passo 7 é só entre o navegador do usuário e o app).
+- Garanta a **conectividade de rede**: o Windows Server precisa alcançar `IP:PORTA` do gateway
+  (mesma LAN/VPN) e o **firewall** da máquina do gateway precisa liberar essa porta.
+- Teste do próprio Windows Server:
+  ```powershell
+  curl http://192.168.X.Y:PORTA/v1/models        # deve listar os modelos (mangaba-*)
+  ```
+- Se `OPENAI_MODEL` estiver setado, o app usa esse; senão descobre pelo `/v1/models`.
+- Confirme depois em `https://SEU_DOMINIO/api/status` (logado) → deve retornar `"online": true`.
 
 ---
 

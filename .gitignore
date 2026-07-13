@@ -12,3 +12,6 @@ next-env.d.ts
 
 seed-credentials.txt
 .env*
+
+# permitir o template versionado
+!.env.production.example
