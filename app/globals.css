@@ -2980,6 +2980,19 @@ body {
   line-height: 1.5;
 }
 
+.login-link {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  color: var(--verde-vivo);
+  font-size: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+  width: auto;
+}
+
 .login-back {
   display: block;
   color: var(--verde-vivo);

@@ -62,6 +62,7 @@ export default function ChatPage() {
   const [passwordInput, setPasswordInput] = useState("");
   const [loginError, setLoginError] = useState("");
   const [loggingIn, setLoggingIn] = useState(false);
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [status, setStatus] = useState<EngineStatus>("checking");
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -510,6 +511,38 @@ export default function ChatPage() {
         return;
       }
       const d = await res.json();
+      setPasswordInput("");
+      setUser(d.user);
+      setUserName(d.name || "");
+    } catch {
+      setLoginError("Falha de conexão. Tente novamente.");
+    } finally {
+      setLoggingIn(false);
+    }
+  }
+
+  async function register(e: React.FormEvent) {
+    e.preventDefault();
+    const username = usernameInput.trim().toLowerCase();
+    const password = passwordInput;
+    if (!username || !password || loggingIn) return;
+    if (password.length < 8) {
+      setLoginError("A senha deve ter pelo menos 8 caracteres.");
+      return;
+    }
+    setLoginError("");
+    setLoggingIn(true);
+    try {
+      const res = await fetch("/api/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: username, password }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setLoginError(d.error || "Não foi possível criar a conta.");
+        return;
+      }
       setPasswordInput("");
       setUser(d.user);
       setUserName(d.name || "");
@@ -1132,9 +1165,13 @@ export default function ChatPage() {
       <div className="login-screen">
         <div className="login-card">
           <img src="/logo-its.png" alt="ITS Brasil" />
-          <h1>Entrar</h1>
-          <p>Entre com seu e-mail e senha para usar a Ítala.</p>
-          <form onSubmit={login}>
+          <h1>{authMode === "login" ? "Entrar" : "Criar conta"}</h1>
+          <p>
+            {authMode === "login"
+              ? "Entre com seu e-mail e senha para usar a Ítala."
+              : "Crie sua conta com e-mail e senha para usar a Ítala."}
+          </p>
+          <form onSubmit={authMode === "login" ? login : register}>
             <input
               type="email"
               value={usernameInput}
@@ -1147,16 +1184,31 @@ export default function ChatPage() {
               type="password"
               value={passwordInput}
               onChange={(e) => { setPasswordInput(e.target.value); setLoginError(""); }}
-              placeholder="Senha"
-              autoComplete="current-password"
+              placeholder={authMode === "login" ? "Senha" : "Senha (mín. 8 caracteres)"}
+              autoComplete={authMode === "login" ? "current-password" : "new-password"}
+              minLength={authMode === "register" ? 8 : undefined}
             />
             <button type="submit" disabled={!usernameInput.trim() || !passwordInput || loggingIn}>
-              {loggingIn ? "Entrando…" : "Entrar"}
+              {loggingIn
+                ? (authMode === "login" ? "Entrando…" : "Criando…")
+                : (authMode === "login" ? "Entrar" : "Criar conta")}
             </button>
           </form>
           {loginError && <div className="login-error">{loginError}</div>}
           <p className="login-help">
-            Acesso restrito aos funcionários da ITS Brasil. Sem acesso? Fale com o administrador.
+            {authMode === "login" ? (
+              <>Ainda não tem conta?{" "}
+                <button type="button" className="login-link" onClick={() => { setAuthMode("register"); setLoginError(""); }}>
+                  Criar conta
+                </button>
+              </>
+            ) : (
+              <>Já tem conta?{" "}
+                <button type="button" className="login-link" onClick={() => { setAuthMode("login"); setLoginError(""); }}>
+                  Entrar
+                </button>
+              </>
+            )}
           </p>
           <a className="login-back" href="/manual">📘 Como usar a Ítala (manual)</a>
           <a className="login-back" href="/">← Voltar ao início</a>

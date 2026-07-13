@@ -28,9 +28,19 @@ export function isAllowedEmail(email: string): boolean {
   return Object.prototype.hasOwnProperty.call(TEAM, normalizeEmail(email));
 }
 
-/** Nome de exibição do funcionário (ou o próprio e-mail, se não mapeado). */
+/** Nome de exibição: usa o mapa da equipe; senão, deriva do e-mail
+ *  (ex.: "ana.paula@x.com" → "Ana Paula"). */
 export function displayName(email: string): string {
-  return TEAM[normalizeEmail(email)] || email;
+  const norm = normalizeEmail(email);
+  const mapped = TEAM[norm];
+  if (mapped) return mapped;
+  const local = norm.split("@")[0] || "";
+  const pretty = local
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+  return pretty || email;
 }
 
 /** Validação simples de formato de e-mail. */

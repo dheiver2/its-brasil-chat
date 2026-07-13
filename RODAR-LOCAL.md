@@ -25,8 +25,12 @@ node scripts/init-local-db.mjs           # cria users/conversations/knowledge + 
 # ou:  node scripts/init-local-db.mjs email@dominio.com senha
 ```
 
-**Conta local já criada:** `dheiver.santos@gmail.com` / `its@2026`
-(o e-mail também está na allowlist em `app/lib/allowlist.ts`).
+**Conta admin já criada:** `dheiver.santos@gmail.com` / `its@2026`
+
+**Auto-cadastro (aberto):** cada colaborador cria a própria conta em `/chat` →
+botão **"Criar conta"** (e-mail + senha de no mínimo 8 caracteres). Não precisa mais
+provisionar conta pelo admin nem estar na allowlist. Para restringir a cadastro
+(ex.: só `@itsbrasil.net`), edite `app/api/register/route.ts`.
 
 ## 2) Variáveis de ambiente (`.env.local`)
 Já configurado. Aponta o motor de IA para o gateway Mangaba (ngrok) e o banco para o container:

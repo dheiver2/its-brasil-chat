@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 import { verifyPassword, hashPasswordBcrypt, createSessionToken, sessionCookie } from "../../lib/auth";
 import { findUser, updatePasswordHash } from "../../lib/db";
 import { rateLimit, LIMITS, getIp, tooManyRequests } from "../../lib/ratelimit";
-import { isAllowedEmail, normalizeEmail, displayName } from "../../lib/allowlist";
+import { normalizeEmail, displayName } from "../../lib/allowlist";
 
 export async function POST(req: Request) {
   const ip = getIp(req);
@@ -26,13 +26,6 @@ export async function POST(req: Request) {
   // travar o escritório inteiro (vários funcionários saem pelo mesmo IP).
   const rl = await rateLimit(`login:${ip}:${username}`, LIMITS.login.limit, LIMITS.login.windowSecs);
   if (!rl.allowed) return tooManyRequests(rl.resetAt);
-  // Trava: somente e-mails autorizados (bloqueia até contas antigas fora da lista).
-  if (!isAllowedEmail(username)) {
-    return Response.json(
-      { error: "Este e-mail não está autorizado a acessar a plataforma." },
-      { status: 403 }
-    );
-  }
 
   try {
     const user = await findUser(username);
